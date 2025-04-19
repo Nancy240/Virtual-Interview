@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, redirect, url_for, request, jsonify
 from flask_cors import CORS
 import boto3
 import random
@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/')
+def home():
+    return redirect(url_for('start_interview'))
 
 # AWS S3 setup
 s3 = boto3.client('s3')
