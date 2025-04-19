@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Virtual Interview</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #question-container { display: none; }
+        #countdown { font-size: 24px; color: red; }
+        .device-status { font-size: 16px; font-weight: bold; }
+        .device-status.success { color: green; }
+        .device-status.error { color: red; }
+        .loading-spinner { display: none; }
+        #video-container { display: none; }
+        #feedback-section { display: none; }
+        #support-container { display: none; }
+        #progress-link { display: none; }
+        #reschedule-container { display: none; margin-top: 20px; }
+        #reschedule-container input { margin-bottom: 10px; }
+    </style>
+</head>
+<body class="container my-5">
+    <!-- Your HTML content -->
+    <div id="interview-container">
+        <div class="alert alert-info" role="alert">
+            <p id="instructions">The interview will be conducted in English. You will have 10 seconds to answer each question. Your mic and camera will be turned on during the interview. If any of these devices are faulty or not working, you will be informed.</p>
+        </div>
+        <button id="check-devices-button" class="btn btn-primary">Check Devices</button>
+        <button id="start-button" class="btn btn-success" style="display:none;">Start Interview</button>
+        <button id="support-button" class="btn btn-secondary">Need Help?</button>
+        <button id="reschedule-interview-button" class="btn btn-warning">Reschedule Interview</button>
+        <div id="status" class="device-status mt-3"></div>
+    </div>
+    <div id="question-container" class="mt-5">
+        <div class="progress">
+            <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 id="question" class="card-title"></h5>
+                <div id="video-container">
+                    <video id="video" width="640" height="480" autoplay class="d-block mx-auto my-3"></video>
+                </div>
+                <p id="countdown" class="text-center"></p>
+                <button id="retry-button" class="btn btn-warning" style="display:none;">Retry</button>
+                <button id="next-button" class="btn btn-primary" style="display:none;">Next Question</button>
+                <button id="submit-button" class="btn btn-success" style="display:none;">Submit Interview</button>
+            </div>
+        </div>
+    </div>
+    <div id="feedback-section" class="mt-5">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Interview Feedback</h5>
+                <textarea id="feedback" class="form-control" rows="4" placeholder="Please provide your feedback here..."></textarea>
+                <button id="submit-feedback-button" class="btn btn-primary mt-3">Submit Feedback</button>
+                <div id="feedback-response" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+    <div id="support-container" class="mt-5">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Support</h5>
+                <p id="support-info">Please contact support if you have issues with your mic or camera.</p>
+                <button id="close-support-button" class="btn btn-primary">Close Support</button>
+            </div>
+        </div>
+    </div>
+    <div id="reschedule-container" class="mt-5">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Reschedule Interview</h5>
+                <p>Choose a new date and time for your interview:</p>
+                <input type="datetime-local" id="new-date-time" class="form-control">
+                <button id="confirm-reschedule-button" class="btn btn-primary mt-3">Confirm Reschedule</button>
+                <button id="cancel-reschedule-button" class="btn btn-secondary mt-3">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div class="loading-spinner text-center">
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let recordings = [];
+        let mediaRecorder;
+        let currentStream;
+        let chunks = [];
+        let questionIndex = 0;
+        let tabSwitchCount = 0; // Variable to count tab switches
+
+        document.getElementById('check-devices-button').onclick = async function () {
+            const statusElem = document.getElementById('status');
+            statusElem.textContent = "Checking devices...";
+            statusElem.classList.remove('success', 'error');
+            document.querySelector('.loading-spinner').style.display = 'block';
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                let micWorking = false;
+                let cameraWorking = false;
+
+                devices.forEach(device => {
+                    if (device.kind === 'audioinput') micWorking = true;
+                    if (device.kind === 'videoinput') cameraWorking = true;
+                });
+
+                document.querySelector('.loading-spinner').style.display = 'none';
+                if (micWorking && cameraWorking) {
+                    statusElem.textContent = "All devices are working properly.";
+                    statusElem.classList.add('success');
+                    document.getElementById('start-button').style.display = 'block';
+                } else {
+                    statusElem.textContent = "";
+                    if (!micWorking) statusElem.textContent += "Microphone is not working. ";
+                    if (!cameraWorking) statusElem.textContent += "Camera is not working.";
+                    statusElem.classList.add('error');
+                }
+            } catch (error) {
+                console.error('Error checking devices:', error);
+                document.querySelector('.loading-spinner').style.display = 'none';
+                statusElem.textContent = "There was an error checking your devices.";
+                statusElem.classList.add('error');
+            }
+        };
+
+        document.getElementById('support-button').onclick = function() {
+            document.getElementById('support-container').style.display = 'block';
+        };
+
+        document.getElementById('close-support-button').onclick = function() {
+            document.getElementById('support-container').style.display = 'none';
+        };
+
+        document.getElementById('reschedule-interview-button').onclick = function() {
+            document.getElementById('reschedule-container').style.display = 'block';
+        };
+
+        document.getElementById('cancel-reschedule-button').onclick = function() {
+            document.getElementById('reschedule-container').style.display = 'none';
+        };
+
+        document.getElementById('confirm-reschedule-button').onclick = async function() {
+            const newDateTime = document.getElementById('new-date-time').value;
+            if (newDateTime) {
+                try {
+                    const response = await fetch('/reschedule-interview', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newDateTime })
+                    });
+                    if (response.ok) {
+                        alert('Interview rescheduled successfully.');
+                        document.getElementById('reschedule-container').style.display = 'none';
+                    } else {
+                        alert('Failed to reschedule interview.');
+                    }
+                } catch (error) {
+                    console.error('Error rescheduling interview:', error);
+                    alert('An error occurred while rescheduling the interview.');
+                }
+            } else {
+                alert('Please select a new date and time.');
+            }
+        };
+
+        document.getElementById('start-button').addEventListener('click', function() {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.mozRequestFullScreen) { // Firefox
+                document.documentElement.mozRequestFullScreen();
+            } else if (document.documentElement.webkitRequestFullscreen) { // Chrome, Safari and Opera
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) { // IE/Edge
+                document.documentElement.msRequestFullscreen();
+            }
+        });
+        document.getElementById('start-button').onclick = async function () {
+            startInterview();
+        };
+
+        async function startInterview() {
+            const response = await fetch('/conduct-interview', { method: 'POST' });
+            const result = await response.json();
+            questions = result.questions;
+
+            document.getElementById('interview-container').style.display = 'none';
+            document.getElementById('question-container').style.display = 'block';
+
+            askNextQuestion();
+        }
+
+        function askNextQuestion() {
+            if (questionIndex < questions.length) {
+                document.getElementById('question').textContent = questions[questionIndex];
+                document.getElementById('progress-bar').style.width = `${((questionIndex + 1) / questions.length) * 100}%`;
+                document.getElementById('progress-bar').setAttribute('aria-valuenow', `${((questionIndex + 1) / questions.length) * 100}`);
+                document.getElementById('next-button').style.display = 'none';
+                document.getElementById('retry-button').style.display = 'none';
+                document.getElementById('submit-button').style.display = 'none';
+
+                startPreparation(5, () => {
+                    recordAnswer(questionIndex, () => {
+                        if (questionIndex < questions.length - 1) {
+                            document.getElementById('next-button').style.display = 'block';
+                        } else {
+                            document.getElementById('submit-button').style.display = 'block';
+                        }
+                        document.getElementById('retry-button').style.display = 'block';
+                    });
+                });
+            } else {
+                endInterview();
+            }
+        }
+
+        function startPreparation(seconds, callback) {
+            const countdownElem = document.getElementById('countdown');
+            document.getElementById('video-container').style.display = 'none';
+            let remainingTime = seconds;
+            countdownElem.textContent = `Prepare your answer. Time left: ${remainingTime}s`;
+            const interval = setInterval(() => {
+                remainingTime--;
+                countdownElem.textContent = `Prepare your answer. Time left: ${remainingTime}s`;
+                if (remainingTime <= 0) {
+                    clearInterval(interval);
+                    document.getElementById('video-container').style.display = 'block';
+                    callback();
+                }
+            }, 1000);
+        }
+
+        function startCountdown(seconds, callback) {
+            const countdownElem = document.getElementById('countdown');
+            let remainingTime = seconds;
+            countdownElem.textContent = `Time left: ${remainingTime}s`;
+            const interval = setInterval(() => {
+                remainingTime--;
+                countdownElem.textContent = `Time left: ${remainingTime}s`;
+                if (remainingTime <= 0) {
+                    clearInterval(interval);
+                    callback();
+                }
+            }, 1000);
+        }
+
+        function recordAnswer(index, callback) {
+            const videoElem = document.getElementById('video');
+            navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+                audio: true
+            }).then(stream => {
+                videoElem.srcObject = stream;
+                currentStream = stream;
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp8' });
+                chunks = [];
+
+                mediaRecorder.ondataavailable = function (event) {
+                    chunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = function () {
+                    const blob = new Blob(chunks, { 'type': 'video/webm;' });
+                    const url = URL.createObjectURL(blob);
+                    recordings[questionIndex] = { blob, url };
+
+                    const formData = new FormData();
+                    formData.append('video', blob, `question_${index}.webm`);
+                    formData.append('question_index', index);
+
+                    fetch('/save-video', { method: 'POST', body: formData });
+                };
+
+                startCountdown(5, () => {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                    callback();
+                });
+
+                mediaRecorder.start();
+            }).catch(error => {
+                console.error('Error accessing media devices.', error);
+            });
+        }
+
+
+        document.getElementById('retry-button').onclick = function () {
+            chunks = [];
+            mediaRecorder.stop();
+            currentStream.getTracks().forEach(track => track.stop());
+            askNextQuestion();
+        };
+
+        document.getElementById('next-button').onclick = function () {
+            questionIndex++;
+            askNextQuestion();
+        };
+
+        document.getElementById('submit-button').onclick = function () {
+            endInterview();
+        };
+
+        function endInterview() {
+            document.getElementById('question-container').innerHTML = `
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Review Your Answers</h5>
+                        ${recordings.map((recording, index) => `
+                            <div class="mt-3">
+                                <h6>Question ${index + 1}</h6>
+                                <video controls width="100%" src="${recording.url}"></video>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <button id="end-interview-button" class="btn btn-primary mt-3">End Interview</button>
+            `;
+            document.getElementById('feedback-section').style.display = 'block';
+
+            document.getElementById('end-interview-button').onclick = function () {
+                window.location.reload();
+            };
+
+            document.getElementById('submit-feedback-button').onclick = function () {
+                const feedback = document.getElementById('feedback').value;
+                alert('Feedback submitted: ' + feedback);
+                window.location.reload();
+            };
+        }
+
+        // Track tab visibility changes
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') {
+                tabSwitchCount++;
+                if (tabSwitchCount > 2) {
+                    alert('You have switched tabs multiple times. The page will reload.');
+                    window.location.reload();
+                } else {
+                    alert('You have switched tabs ' + tabSwitchCount + ' times.');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
