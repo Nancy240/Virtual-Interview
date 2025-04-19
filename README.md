@@ -1,7 +1,7 @@
 # Virtual-Interview
 The Virtual Interview Platform is a web-based application designed to conduct automated video interviews. Candidates answer pre-selected questions, record their responses via webcam, and submit them for review. The application uses Flask for the backend, AWS S3 for video storage, and Google Cloud Speech-to-Text for transcription. The frontend is built with HTML, Bootstrap, and JavaScript, providing a user-friendly interface for device checks, interview progress, and feedback submission.
 
-##Features
+## Features
 
 
 Device Check: Verifies microphone and camera functionality before starting the interview.
